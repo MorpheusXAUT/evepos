@@ -1,0 +1,125 @@
+package mysql
+
+import (
+	"fmt"
+
+	"github.com/morpheusxaut/evepos/misc"
+	"github.com/morpheusxaut/evepos/models"
+
+	// Blank import of the MySQL driver to use with sqlx
+	_ "github.com/go-sql-driver/mysql"
+	"github.com/jmoiron/sqlx"
+)
+
+// DatabaseConnection provides an implementation of the Connection interface using a MySQL database
+type DatabaseConnection struct {
+	// Config stores the current configuration values being used
+	Config *misc.Configuration
+
+	conn *sqlx.DB
+}
+
+// Connect tries to establish a connection to the MySQL backend, returning an error if the attempt failed
+func (c *DatabaseConnection) Connect() error {
+	conn, err := sqlx.Connect("mysql", fmt.Sprintf("%s:%s@tcp(%s)/%s?charset=utf8&parseTime=true", c.Config.DatabaseUser, c.Config.DatabasePassword, c.Config.DatabaseHost, c.Config.DatabaseSchema))
+	if err != nil {
+		return err
+	}
+
+	c.conn = conn
+
+	return nil
+}
+
+// RawQuery performs a raw MySQL query and returns a map of interfaces containing the retrieve data. An error is returned if the query failed
+func (c *DatabaseConnection) RawQuery(query string, v ...interface{}) ([]map[string]interface{}, error) {
+	rows, err := c.conn.Query(query, v...)
+	if err != nil {
+		return nil, err
+	}
+
+	columns, _ := rows.Columns()
+	count := len(columns)
+	values := make([]interface{}, count)
+	valuePtrs := make([]interface{}, count)
+
+	var results []map[string]interface{}
+
+	for rows.Next() {
+		for i := range columns {
+			valuePtrs[i] = &values[i]
+		}
+
+		rows.Scan(valuePtrs...)
+
+		resultRow := make(map[string]interface{})
+
+		for i, col := range columns {
+			resultRow[col] = values[i]
+		}
+
+		results = append(results, resultRow)
+	}
+
+	return results, nil
+}
+
+// LoadUserFromUsername retrieves the user (and its associated groups and user roles) with the given username from the database, returning an error if the query failed
+func (c *DatabaseConnection) LoadUserFromUsername(username string) (*models.User, error) {
+	user := &models.User{}
+
+	err := c.conn.Get(user, "SELECT id, username, password, email, verifiedemail, active FROM users WHERE username LIKE ?", username)
+	if err != nil {
+		return nil, err
+	}
+
+	return user, nil
+}
+
+// LoadPasswordForUser retrieves the password associated with the given username from the MySQL database, returning an error if the query failed
+func (c *DatabaseConnection) LoadPasswordForUser(username string) (string, error) {
+	row := c.conn.QueryRowx("SELECT password FROM users WHERE username LIKE ?", username)
+
+	var password string
+
+	err := row.Scan(&password)
+	if err != nil {
+		return "", err
+	}
+
+	return password, nil
+}
+
+// SaveUser saves a user to the MySQL database, returning the updated model or an error if the query failed
+func (c *DatabaseConnection) SaveUser(user *models.User) (*models.User, error) {
+	if user.ID > 0 {
+		_, err := c.conn.Exec("UPDATE users SET username=?, password=?, email=?, verifiedemail=?, active=? WHERE id=?", user.Username, user.Password, user.Email, user.VerifiedEmail, user.Active, user.ID)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		resp, err := c.conn.Exec("INSERT INTO users(username, password, email, verifiedemail, active) VALUES(?, ?, ?, ?, ?)", user.Username, user.Password, user.Email, user.VerifiedEmail, user.Active)
+		if err != nil {
+			return nil, err
+		}
+
+		lastInsertedID, err := resp.LastInsertId()
+		if err != nil {
+			return nil, err
+		}
+
+		user.ID = lastInsertedID
+	}
+
+	return user, nil
+}
+
+// SaveLoginAttempt saves a login attempt to the MySQL database, returning an error if the query failed
+func (c *DatabaseConnection) SaveLoginAttempt(loginAttempt *models.LoginAttempt) error {
+	_, err := c.conn.Exec("INSERT INTO loginattempts(username, remoteaddr, useragent, successful) VALUES(?, ?, ?, ?)", loginAttempt.Username, loginAttempt.RemoteAddr, loginAttempt.UserAgent, loginAttempt.Successful)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
