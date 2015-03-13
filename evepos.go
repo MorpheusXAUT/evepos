@@ -53,5 +53,7 @@ func main() {
 
 	controller := web.SetupController(config, db, sessionController, templates, checksums)
 
+	sessionController.StartRefreshTimer()
+
 	controller.HandleRequests()
 }

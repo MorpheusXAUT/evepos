@@ -26,18 +26,22 @@ type Controller struct {
 	mail     *mail.Controller
 	store    *redistore.RediStore
 
-	poses      []*models.POS
-	expiryTime time.Time
+	poses        []*models.POS
+	expiryTime   time.Time
+	refreshTimer *time.Timer
+	refreshChan  chan bool
 }
 
 // SetupSessionController prepares the controller's session store and sets a default session lifespan
 func SetupSessionController(conf *misc.Configuration, db database.Connection, mailer *mail.Controller) (*Controller, error) {
 	controller := &Controller{
-		config:     conf,
-		database:   db,
-		mail:       mailer,
-		poses:      make([]*models.POS, 0),
-		expiryTime: time.Time{},
+		config:       conf,
+		database:     db,
+		mail:         mailer,
+		poses:        make([]*models.POS, 0),
+		expiryTime:   time.Time{},
+		refreshTimer: &time.Timer{},
+		refreshChan:  make(chan bool),
 	}
 
 	store, err := redistore.NewRediStoreWithDB(10, "tcp", controller.config.RedisHost, controller.config.RedisPassword, "2", securecookie.GenerateRandomKey(64), securecookie.GenerateRandomKey(32))
@@ -56,6 +60,78 @@ func SetupSessionController(conf *misc.Configuration, db database.Connection, ma
 	gob.Register(&models.User{})
 
 	return controller, nil
+}
+
+func (controller *Controller) StartRefreshTimer() {
+	go func() {
+		for {
+			select {
+			case <-controller.refreshTimer.C:
+			case <-controller.refreshChan:
+				misc.Logger.Debugln("Updating cache...")
+				controller.RefreshCache()
+				controller.refreshTimer = time.NewTimer(controller.expiryTime.Sub(time.Now()))
+				misc.Logger.Debugf("Next cache update scheduled in %v", controller.expiryTime.Sub(time.Now()))
+			}
+		}
+	}()
+
+	controller.refreshChan <- true
+}
+
+func (controller *Controller) RefreshCache() {
+	var poses []*models.POS
+
+	apiKeys, err := controller.database.LoadAllAPIKeys()
+	if err != nil {
+		misc.Logger.Errorf("Failed to load all API keys: [%v]", err)
+		return
+	}
+
+	for _, apiKey := range apiKeys {
+		api := eveapi.Simple(apiKey)
+
+		starbaseList, err := api.CorpStarbaseList()
+		if err != nil {
+			misc.Logger.Errorf("Failed to retrieve starbase list: [%v]", err)
+			return
+		}
+
+		for _, starbase := range starbaseList.Starbases {
+			starbaseDetails, err := api.CorpStarbaseDetails(starbase.ID)
+			if err != nil {
+				misc.Logger.Errorf("Failed to retrieve starbase details for #%d: [%v]", starbase.ID, err)
+				return
+			}
+
+			var posFuel *models.POSFuel
+
+			for _, fuel := range starbaseDetails.Fuel {
+				if fuel.TypeID == 4051 || fuel.TypeID == 4246 || fuel.TypeID == 4247 || fuel.TypeID == 4312 {
+					fuelUsage, err := controller.database.QueryFuelUsage(starbase.TypeID, fuel.TypeID)
+					if err != nil {
+						misc.Logger.Errorf("Failed to query fuel usage: [%v]", err)
+						return
+					}
+
+					fuelName, err := controller.database.QueryTypeName(fuel.TypeID)
+					if err != nil {
+						misc.Logger.Errorf("Failed to query type name: [%v]", err)
+						return
+					}
+
+					posFuel = models.NewPOSFuel(fuel.TypeID, fuelName, fuelUsage, fuel.Quantity)
+					break
+				}
+			}
+
+			poses = append(poses, models.NewPOS(starbase, starbaseDetails, posFuel))
+		}
+
+		controller.expiryTime = starbaseList.APIResult.CachedUntil.Time
+	}
+
+	controller.poses = poses
 }
 
 // DestroySession destroys a user's session by setting a negative maximum age
@@ -227,53 +303,8 @@ func (controller *Controller) VerifyPasswordReset(w http.ResponseWriter, r *http
 
 func (controller *Controller) LoadPOSes() ([]*models.POS, error) {
 	if time.Now().After(controller.expiryTime) {
-		var poses []*models.POS
-
-		apiKeys, err := controller.database.LoadAllAPIKeys()
-		if err != nil {
-			return nil, err
-		}
-
-		for _, apiKey := range apiKeys {
-			api := eveapi.Simple(apiKey)
-
-			starbaseList, err := api.CorpStarbaseList()
-			if err != nil {
-				return nil, err
-			}
-
-			for _, starbase := range starbaseList.Starbases {
-				starbaseDetails, err := api.CorpStarbaseDetails(starbase.ID)
-				if err != nil {
-					return nil, err
-				}
-
-				var posFuel *models.POSFuel
-
-				for _, fuel := range starbaseDetails.Fuel {
-					if fuel.TypeID == 4051 || fuel.TypeID == 4246 || fuel.TypeID == 4247 || fuel.TypeID == 4312 {
-						fuelUsage, err := controller.database.QueryFuelUsage(starbase.TypeID, fuel.TypeID)
-						if err != nil {
-							return nil, err
-						}
-
-						fuelName, err := controller.database.QueryTypeName(fuel.TypeID)
-						if err != nil {
-							return nil, err
-						}
-
-						posFuel = models.NewPOSFuel(fuel.TypeID, fuelName, fuelUsage, fuel.Quantity)
-						break
-					}
-				}
-
-				poses = append(poses, models.NewPOS(starbase, starbaseDetails, posFuel))
-			}
-
-			controller.expiryTime = starbaseList.APIResult.CachedUntil.Time
-		}
-
-		controller.poses = poses
+		misc.Logger.Debugln("Cache expired, manually triggering update")
+		controller.refreshChan <- true
 	}
 
 	return controller.poses, nil
