@@ -87,3 +87,11 @@ jQuery.fn.filterByText = function(textbox, selectSingleMatch) {
 		});
 	});
 };
+
+$(document).ready(function() {
+	$('#posesTable').dataTable({
+		"lengthMenu": [[ 10, 25, 50, 100, -1], [10, 25, 60, 100, "All"]],
+		"order": [[ 5, "asc" ]],
+		"pageLength": 25
+	});
+});

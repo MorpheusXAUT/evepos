@@ -2,21 +2,23 @@ package models
 
 import (
 	"encoding/json"
+
+	"github.com/morpheusxaut/eveapi"
 )
 
 // POS represents a player operated starbase
 type POS struct {
-	// ID represents the database ID of the POS
-	ID int64 `json:"id"`
-	// Active indicates whether the User is set as active
-	Active bool `json:"active"`
+	Base    *eveapi.Starbase
+	Details *eveapi.StarbaseDetails
+	Fuel    *POSFuel
 }
 
 // NewPOS creates a new POS with the given information
-func NewPOS(active bool) *POS {
+func NewPOS(base *eveapi.Starbase, details *eveapi.StarbaseDetails, fuel *POSFuel) *POS {
 	pos := &POS{
-		ID:     -1,
-		Active: active,
+		Base:    base,
+		Details: details,
+		Fuel:    fuel,
 	}
 
 	return pos

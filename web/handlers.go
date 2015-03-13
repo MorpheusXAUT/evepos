@@ -3,11 +3,8 @@ package web
 import (
 	"fmt"
 	"net/http"
-	"strconv"
 
 	"github.com/morpheusxaut/evepos/misc"
-
-	"github.com/gorilla/mux"
 )
 
 // IndexGetHandler displays the index page of the web app
@@ -320,65 +317,24 @@ func (controller *Controller) PosesGetHandler(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	poses, err := controller.Session.LoadPOSes()
+	if err != nil {
+		misc.Logger.Warnf("Failed to load POSes: [%v]", err)
+
+		response["status"] = 1
+		response["result"] = fmt.Errorf("Failed to load POSes, please try again!")
+
+		controller.SendResponse(w, r, "poses", response)
+
+		return
+	}
+
+	response["poses"] = poses
 	response["loggedIn"] = loggedIn
 	response["status"] = 0
 	response["result"] = nil
 
 	controller.SendResponse(w, r, "poses", response)
-}
-
-// PosDetailsGetHandler displays more information about a selected POS
-func (controller *Controller) PosDetailsGetHandler(w http.ResponseWriter, r *http.Request) {
-	response := make(map[string]interface{})
-	response["pageType"] = 3
-	response["pageTitle"] = "POS details"
-
-	loggedIn := controller.Session.IsLoggedIn(w, r)
-
-	if !loggedIn {
-		err := controller.Session.SetLoginRedirect(w, r, "/poses")
-		if err != nil {
-			misc.Logger.Warnf("Failed to set login redirect: [%v]", err)
-			controller.SendRawError(w, http.StatusInternalServerError, err)
-			return
-		}
-
-		http.Redirect(w, r, "/login", http.StatusSeeOther)
-		return
-	}
-
-	response["loggedIn"] = loggedIn
-
-	vars := mux.Vars(r)
-	posID, err := strconv.ParseInt(vars["posid"], 10, 64)
-	if err != nil {
-		misc.Logger.Warnf("Failed to parse POS ID %q: [%v]", vars["posid"], err)
-
-		response["status"] = 1
-		response["result"] = fmt.Errorf("Invalid POS ID, please try again!")
-
-		controller.SendResponse(w, r, "posdetails", response)
-
-		return
-	}
-
-	pos, err := controller.Session.LoadPOSDetails(posID)
-	if err != nil {
-		misc.Logger.Warnf("Failed to load POS details: [%v]", err)
-
-		response["status"] = 1
-		response["result"] = fmt.Errorf("Failed to load POS details, please try again!")
-
-		controller.SendResponse(w, r, "posdetails", response)
-
-		return
-	}
-
-	response["pos"] = pos
-	response["status"] = 0
-	response["result"] = nil
-
-	controller.SendResponse(w, r, "posdetails", response)
 }
 
 // LegalGetHandler displays some legal information as well as copyright disclaimers and contact info

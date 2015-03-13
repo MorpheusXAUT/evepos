@@ -43,7 +43,7 @@ func main() {
 		os.Exit(2)
 	}
 
-	templates := web.SetupTemplates()
+	templates := web.SetupTemplates(db)
 
 	checksums, err := web.SetupAssetChecksums()
 	if err != nil {

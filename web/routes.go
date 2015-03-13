@@ -74,12 +74,6 @@ func SetupRoutes(controller *Controller) []Route {
 			HandlerFunc: controller.PosesGetHandler,
 		},
 		Route{
-			Name:        "PosDetailsGet",
-			Methods:     []string{"GET"},
-			Pattern:     "/pos/{posid:[0-9]+}",
-			HandlerFunc: controller.PosDetailsGetHandler,
-		},
-		Route{
 			Name:        "LegalGet",
 			Methods:     []string{"GET"},
 			Pattern:     "/legal",

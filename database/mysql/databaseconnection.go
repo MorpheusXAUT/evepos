@@ -9,6 +9,7 @@ import (
 	// Blank import of the MySQL driver to use with sqlx
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
+	"github.com/morpheusxaut/eveapi"
 )
 
 // DatabaseConnection provides an implementation of the Connection interface using a MySQL database
@@ -64,6 +65,17 @@ func (c *DatabaseConnection) RawQuery(query string, v ...interface{}) ([]map[str
 	return results, nil
 }
 
+func (c *DatabaseConnection) LoadAllAPIKeys() ([]eveapi.Key, error) {
+	var apiKeys []eveapi.Key
+
+	err := c.conn.Select(&apiKeys, "SELECT id, vcode FROM apikeys")
+	if err != nil {
+		return nil, err
+	}
+
+	return apiKeys, nil
+}
+
 // LoadUserFromUsername retrieves the user (and its associated groups and user roles) with the given username from the database, returning an error if the query failed
 func (c *DatabaseConnection) LoadUserFromUsername(username string) (*models.User, error) {
 	user := &models.User{}
@@ -88,6 +100,39 @@ func (c *DatabaseConnection) LoadPasswordForUser(username string) (string, error
 	}
 
 	return password, nil
+}
+
+func (c *DatabaseConnection) QueryLocationName(moonID int64) (string, error) {
+	var locationName string
+
+	err := c.conn.Get(&locationName, "SELECT itemName FROM mapDenormalize WHERE itemID = ?", moonID)
+	if err != nil {
+		return "", err
+	}
+
+	return locationName, nil
+}
+
+func (c *DatabaseConnection) QueryTypeName(typeID int64) (string, error) {
+	var typeName string
+
+	err := c.conn.Get(&typeName, "SELECT typeName FROM invTypes WHERE typeID = ?", typeID)
+	if err != nil {
+		return "", err
+	}
+
+	return typeName, nil
+}
+
+func (c *DatabaseConnection) QueryFuelUsage(posTypeID int64, fuelTypeID int64) (int64, error) {
+	var usage int64
+
+	err := c.conn.Get(&usage, "SELECT quantity FROM invControlTowerResources WHERE controlTowerTypeID = ? AND resourceTypeID = ?", posTypeID, fuelTypeID)
+	if err != nil {
+		return -1, err
+	}
+
+	return usage, nil
 }
 
 // SaveUser saves a user to the MySQL database, returning the updated model or an error if the query failed

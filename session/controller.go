@@ -12,9 +12,10 @@ import (
 	"github.com/morpheusxaut/evepos/misc"
 	"github.com/morpheusxaut/evepos/models"
 
+	"github.com/boj/redistore"
 	"github.com/gorilla/securecookie"
 	"github.com/gorilla/sessions"
-	"github.com/morpheusxaut/redistore"
+	"github.com/morpheusxaut/eveapi"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -24,17 +25,22 @@ type Controller struct {
 	database database.Connection
 	mail     *mail.Controller
 	store    *redistore.RediStore
+
+	poses      []*models.POS
+	expiryTime time.Time
 }
 
 // SetupSessionController prepares the controller's session store and sets a default session lifespan
 func SetupSessionController(conf *misc.Configuration, db database.Connection, mailer *mail.Controller) (*Controller, error) {
 	controller := &Controller{
-		config:   conf,
-		database: db,
-		mail:     mailer,
+		config:     conf,
+		database:   db,
+		mail:       mailer,
+		poses:      make([]*models.POS, 0),
+		expiryTime: time.Time{},
 	}
 
-	store, err := redistore.NewRediStoreWithDB(10, "tcp", controller.config.RedisHost, controller.config.RedisPassword, "0", securecookie.GenerateRandomKey(64), securecookie.GenerateRandomKey(32))
+	store, err := redistore.NewRediStoreWithDB(10, "tcp", controller.config.RedisHost, controller.config.RedisPassword, "2", securecookie.GenerateRandomKey(64), securecookie.GenerateRandomKey(32))
 	if err != nil {
 		return nil, err
 	}
@@ -219,8 +225,58 @@ func (controller *Controller) VerifyPasswordReset(w http.ResponseWriter, r *http
 	return nil
 }
 
-func (controller *Controller) LoadPOSDetails(posID int64) (*models.POS, error) {
-	return nil, nil
+func (controller *Controller) LoadPOSes() ([]*models.POS, error) {
+	if time.Now().After(controller.expiryTime) {
+		var poses []*models.POS
+
+		apiKeys, err := controller.database.LoadAllAPIKeys()
+		if err != nil {
+			return nil, err
+		}
+
+		for _, apiKey := range apiKeys {
+			api := eveapi.Simple(apiKey)
+
+			starbaseList, err := api.CorpStarbaseList()
+			if err != nil {
+				return nil, err
+			}
+
+			for _, starbase := range starbaseList.Starbases {
+				starbaseDetails, err := api.CorpStarbaseDetails(starbase.ID)
+				if err != nil {
+					return nil, err
+				}
+
+				var posFuel *models.POSFuel
+
+				for _, fuel := range starbaseDetails.Fuel {
+					if fuel.TypeID == 4051 || fuel.TypeID == 4246 || fuel.TypeID == 4247 || fuel.TypeID == 4312 {
+						fuelUsage, err := controller.database.QueryFuelUsage(starbase.TypeID, fuel.TypeID)
+						if err != nil {
+							return nil, err
+						}
+
+						fuelName, err := controller.database.QueryTypeName(fuel.TypeID)
+						if err != nil {
+							return nil, err
+						}
+
+						posFuel = models.NewPOSFuel(fuel.TypeID, fuelName, fuelUsage, fuel.Quantity)
+						break
+					}
+				}
+
+				poses = append(poses, models.NewPOS(starbase, starbaseDetails, posFuel))
+			}
+
+			controller.expiryTime = starbaseList.APIResult.CachedUntil.Time
+		}
+
+		controller.poses = poses
+	}
+
+	return controller.poses, nil
 }
 
 // GetUser returns the user-object stored in the data session

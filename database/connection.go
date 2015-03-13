@@ -6,6 +6,8 @@ import (
 	"github.com/morpheusxaut/evepos/database/mysql"
 	"github.com/morpheusxaut/evepos/misc"
 	"github.com/morpheusxaut/evepos/models"
+
+	"github.com/morpheusxaut/eveapi"
 )
 
 // Connection provides an interface for communicating with a database backend in order to retrieve and persist the needed information
@@ -16,11 +18,17 @@ type Connection interface {
 	// RawQuery performs a raw database query and returns a map of interfaces containing the retrieve data. An error is returned if the query failed
 	RawQuery(query string, v ...interface{}) ([]map[string]interface{}, error)
 
+	LoadAllAPIKeys() ([]eveapi.Key, error)
+
 	// LoadUserFromUsername retrieves the user with the given username from the database, returning an error if the query failed
 	LoadUserFromUsername(username string) (*models.User, error)
 
 	// LoadPasswordForUser retrieves the password associated with the given username from the database, returning an error if the query failed
 	LoadPasswordForUser(username string) (string, error)
+
+	QueryLocationName(moonID int64) (string, error)
+	QueryTypeName(typeID int64) (string, error)
+	QueryFuelUsage(posTypeID int64, fuelTypeID int64) (int64, error)
 
 	// SaveUser saves a user to the database, returning the updated model or an error if the query failed
 	SaveUser(user *models.User) (*models.User, error)
