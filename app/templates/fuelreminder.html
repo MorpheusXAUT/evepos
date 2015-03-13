@@ -1,0 +1,86 @@
+{{ define "fuelreminder" }}
+<html>
+	<head>
+		<style>
+			@import url("https://fonts.googleapis.com/css?family=Lato:400,700,400italic");
+
+			html {
+				position: relative;
+				min-height: 100%;
+			}
+
+			body {
+				font-family: font-family: "Lato", "Helvetica Neue", Helvetica, Arial, sans-serif;
+				font-size: 15px;
+				line-height: 1.42857143;
+				color: #ffffff;
+				background-color: #222222;
+				padding: 10px 15px 0;
+				margin-bottom: 10px;
+			}
+
+			h1 {
+				font-weight: 400;
+				line-height: 1.1;
+				color: inherit;
+				font-size: 39px;
+			}
+
+			h2 {
+				font-weight: 150;
+				line-height: 1.0;
+				color: inherit;
+				font-size: 24px;
+				color: #0ce3ac;
+			}
+
+			a {
+				color: #0ce3ac;
+  				text-decoration: none;
+			}
+
+			a:hover {
+				text-decoration: underline;
+			}
+
+			b.highlight {
+				color: #0ce3ac;
+			}
+
+			th, td {
+				padding-right: 10px;
+				padding-left: 10px;
+			}
+		</style>
+	</head>
+	<body>
+		<h1>evepos</h1>
+		<div>
+			Hai <b class="highlight">{{ .username }}</b>, how're you doing? Nice weather today, don't you think?<br />
+			Oh, not sure if you care, but it appears like your POSes are running out of fuel!<br />
+			<h2>POSes with low fuel</h2>
+			<table>
+				<thead>
+					<tr>
+						<th>Type</th>
+						<th>Location</th>
+						<th>Time Remaining</th>
+					</tr>
+				</thead>
+				<tbody>
+					{{ range $pos := .poses }}
+					<tr>
+						<td>{{ FormatType $pos.Base.TypeID }}</td>
+						<td>{{ FormatLocation $pos.Base.MoonID }}</td>
+						<td>{{ if eq $pos.Base.State 4 }} {{ FormatRemainingFuelTime $pos.Fuel.Usage $pos.Fuel.Quantity }} {{ else }} --- {{ end }}</td>
+					</tr>
+					{{ end }}
+				</tbody>
+			</table><br />
+			You might want to check up on that...<br /><br />
+			Regards,<br />
+			evepos Postbot
+		</div>
+	</body>
+</html>
+{{ end }}
