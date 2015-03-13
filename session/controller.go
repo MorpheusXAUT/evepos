@@ -26,22 +26,26 @@ type Controller struct {
 	mail     *mail.Controller
 	store    *redistore.RediStore
 
-	poses        []*models.POS
-	expiryTime   time.Time
-	refreshTimer *time.Timer
-	refreshChan  chan bool
+	poses               []*models.POS
+	expiryTime          time.Time
+	refreshTimer        *time.Timer
+	refreshChan         chan bool
+	emailReminderTicker *time.Ticker
+	emailReminderChan   chan bool
 }
 
 // SetupSessionController prepares the controller's session store and sets a default session lifespan
 func SetupSessionController(conf *misc.Configuration, db database.Connection, mailer *mail.Controller) (*Controller, error) {
 	controller := &Controller{
-		config:       conf,
-		database:     db,
-		mail:         mailer,
-		poses:        make([]*models.POS, 0),
-		expiryTime:   time.Time{},
-		refreshTimer: &time.Timer{},
-		refreshChan:  make(chan bool),
+		config:              conf,
+		database:            db,
+		mail:                mailer,
+		poses:               make([]*models.POS, 0),
+		expiryTime:          time.Time{},
+		refreshTimer:        &time.Timer{},
+		refreshChan:         make(chan bool),
+		emailReminderTicker: time.NewTicker(30 * time.Minute),
+		emailReminderChan:   make(chan bool),
 	}
 
 	store, err := redistore.NewRediStoreWithDB(10, "tcp", controller.config.RedisHost, controller.config.RedisPassword, "2", securecookie.GenerateRandomKey(64), securecookie.GenerateRandomKey(32))
@@ -67,11 +71,17 @@ func (controller *Controller) StartRefreshTimer() {
 		for {
 			select {
 			case <-controller.refreshTimer.C:
-			case <-controller.refreshChan:
 				misc.Logger.Debugln("Updating cache...")
 				controller.RefreshCache()
 				controller.refreshTimer = time.NewTimer(controller.expiryTime.Sub(time.Now()))
 				misc.Logger.Debugf("Next cache update scheduled in %v", controller.expiryTime.Sub(time.Now()))
+				controller.emailReminderChan <- true
+			case <-controller.refreshChan:
+				misc.Logger.Debugln("Updating cache, manually triggered...")
+				controller.RefreshCache()
+				controller.refreshTimer = time.NewTimer(controller.expiryTime.Sub(time.Now()))
+				misc.Logger.Debugf("Next cache update scheduled in %v (manual trigger)", controller.expiryTime.Sub(time.Now()))
+				controller.emailReminderChan <- true
 			}
 		}
 	}()
@@ -132,6 +142,53 @@ func (controller *Controller) RefreshCache() {
 	}
 
 	controller.poses = poses
+}
+
+func (controller *Controller) StartEmailReminderTicker() {
+	go func() {
+		for {
+			select {
+			case <-controller.emailReminderTicker.C:
+				misc.Logger.Debugln("Checking POS fuel reminder...")
+				controller.CheckEmailReminder()
+				misc.Logger.Debugln("Next POS fuel reminder check scheduled in 30 minutes...")
+				break
+			case <-controller.emailReminderChan:
+				misc.Logger.Debugln("Checking POS fuel reminder, manually triggered...")
+				controller.CheckEmailReminder()
+				misc.Logger.Debugln("Next POS fuel reminder check scheduled in ??? minutes (manual trigger)...")
+				break
+			}
+		}
+	}()
+}
+
+func (controller *Controller) CheckEmailReminder() {
+	var lowPoses []*models.POS
+
+	for _, pos := range controller.poses {
+		if pos.Base.State == 4 && (pos.Fuel.Quantity/pos.Fuel.Usage) <= 36 {
+			lowPoses = append(lowPoses, pos)
+		}
+	}
+
+	if len(lowPoses) == 0 {
+		misc.Logger.Debugln("No POSes low on fuel. YAY \\o/")
+		return
+	}
+
+	users, err := controller.database.LoadAllUsers()
+	if err != nil {
+		misc.Logger.Errorf("Failed to load all users: [%v]", err)
+		return
+	}
+
+	for _, user := range users {
+		err = controller.mail.SendFuelReminder(user.Username, user.Email, lowPoses)
+		if err != nil {
+			misc.Logger.Errorf("Failed to send fuel reminder: [%v]", err)
+		}
+	}
 }
 
 // DestroySession destroys a user's session by setting a negative maximum age
