@@ -19,6 +19,7 @@ type Connection interface {
 	RawQuery(query string, v ...interface{}) ([]map[string]interface{}, error)
 
 	LoadAllAPIKeys() ([]eveapi.Key, error)
+	LoadAllUsers() ([]*models.User, error)
 
 	// LoadUserFromUsername retrieves the user with the given username from the database, returning an error if the query failed
 	LoadUserFromUsername(username string) (*models.User, error)

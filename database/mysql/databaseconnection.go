@@ -76,6 +76,17 @@ func (c *DatabaseConnection) LoadAllAPIKeys() ([]eveapi.Key, error) {
 	return apiKeys, nil
 }
 
+func (c *DatabaseConnection) LoadAllUsers() ([]*models.User, error) {
+	var users []*models.User
+
+	err := c.conn.Select(&users, "SELECT id, username, password, email, verifiedemail, active FROM users")
+	if err != nil {
+		return nil, err
+	}
+
+	return users, nil
+}
+
 // LoadUserFromUsername retrieves the user (and its associated groups and user roles) with the given username from the database, returning an error if the query failed
 func (c *DatabaseConnection) LoadUserFromUsername(username string) (*models.User, error) {
 	user := &models.User{}
