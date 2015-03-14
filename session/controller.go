@@ -44,7 +44,7 @@ func SetupSessionController(conf *misc.Configuration, db database.Connection, ma
 		expiryTime:          time.Time{},
 		refreshTimer:        &time.Timer{},
 		refreshChan:         make(chan bool),
-		emailReminderTicker: time.NewTicker(30 * time.Minute),
+		emailReminderTicker: time.NewTicker(45 * time.Minute),
 		emailReminderChan:   make(chan bool),
 	}
 
