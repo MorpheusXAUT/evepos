@@ -170,17 +170,25 @@ func (controller *Controller) CheckEmailReminder() {
 
 	for _, pos := range controller.poses {
 		if pos.Base.State == 4 {
+			misc.Logger.Tracef("Reducing fuel (%d left, deducing %d) for POS #%d...", pos.Fuel.Quantity, pos.Fuel.Usage, pos.Base.ID)
+
 			pos.Fuel.Quantity -= pos.Fuel.Usage
 			remainingHours := pos.Fuel.Quantity / pos.Fuel.Usage
 
 			_, ok := controller.reminders[pos.Base.ID]
 			if ok && remainingHours > 36 {
+				misc.Logger.Tracef("POS #%d has fuel > 36h (%dh left), removing from reminder list...", remainingHours, pos.Base.ID)
+
 				delete(controller.reminders, pos.Base.ID)
 			} else if ok && remainingHours <= 36 {
-				misc.Logger.Tracef("POS #%d still low on fuel, reminder sent out already!")
-			} else {
+				misc.Logger.Tracef("POS #%d still low on fuel (%dh left), reminder sent out already!", pos.Base.ID, remainingHours)
+			} else if !ok && remainingHours <= 36 {
+				misc.Logger.Tracef("POS #%d low on fuel (%dh left), adding to reminder list...", pos.Base.ID, remainingHours)
+
 				lowPoses = append(lowPoses, pos)
 				controller.reminders[pos.Base.ID] = models.NewPOSFuelReminder(pos)
+			} else {
+				misc.Logger.Tracef("POS #%d still has enough fuel, skipping...", pos.Base.ID)
 			}
 		}
 	}
