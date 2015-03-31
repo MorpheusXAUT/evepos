@@ -27,6 +27,7 @@ type Controller struct {
 	store    *redistore.RediStore
 
 	poses               []*models.POS
+	reminders           map[int64]*models.POSFuelReminder
 	expiryTime          time.Time
 	refreshTimer        *time.Timer
 	refreshChan         chan bool
@@ -41,10 +42,11 @@ func SetupSessionController(conf *misc.Configuration, db database.Connection, ma
 		database:            db,
 		mail:                mailer,
 		poses:               make([]*models.POS, 0),
+		reminders:           make(map[int64]*models.POSFuelReminder),
 		expiryTime:          time.Time{},
 		refreshTimer:        &time.Timer{},
 		refreshChan:         make(chan bool),
-		emailReminderTicker: time.NewTicker(45 * time.Minute),
+		emailReminderTicker: time.NewTicker(60 * time.Minute),
 		emailReminderChan:   make(chan bool),
 	}
 
@@ -167,8 +169,19 @@ func (controller *Controller) CheckEmailReminder() {
 	var lowPoses []*models.POS
 
 	for _, pos := range controller.poses {
-		if pos.Base.State == 4 && (pos.Fuel.Quantity/pos.Fuel.Usage) <= 36 {
-			lowPoses = append(lowPoses, pos)
+		if pos.Base.State == 4 {
+			pos.Fuel.Quantity -= pos.Fuel.Usage
+			remainingHours := pos.Fuel.Quantity / pos.Fuel.Usage
+
+			_, ok := controller.reminders[pos.Base.ID]
+			if ok && remainingHours > 36 {
+				delete(controller.reminders, pos.Base.ID)
+			} else if ok && remainingHours <= 36 {
+				misc.Logger.Tracef("POS #%d still low on fuel, reminder sent out already!")
+			} else {
+				lowPoses = append(lowPoses, pos)
+				controller.reminders[pos.Base.ID] = models.NewPOSFuelReminder(pos)
+			}
 		}
 	}
 
