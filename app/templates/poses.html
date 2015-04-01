@@ -24,8 +24,8 @@
 						<td>{{ FormatType $pos.Base.TypeID }}</td>
 						<td>{{ FormatLocation $pos.Base.MoonID }}</td>
 						<td>{{ FormatState $pos.Base.State }}</td>
-						<td>{{ if eq $pos.Base.State 4 }} {{ printf "%dx %s" $pos.Fuel.Quantity $pos.Fuel.TypeName }} {{ else }} --- {{ end }}</td>
-						<td>{{ if eq $pos.Base.State 4 }} {{ FormatRemainingFuelTime $pos.Fuel.Usage $pos.Fuel.Quantity }} {{ else }} --- {{ end }}</td>
+						<td data-order="{{ $pos.Fuel.Quantity }}">{{ if eq $pos.Base.State 4 }} {{ printf "%dx %s" $pos.Fuel.Quantity $pos.Fuel.TypeName }} {{ else }} --- {{ end }}</td>
+						<td data-order="{{ CalculateRemainingFuelTime $pos.Fuel.Usage $pos.Fuel.Quantity }}">{{ if eq $pos.Base.State 4 }} {{ FormatRemainingFuelTime $pos.Fuel.Usage $pos.Fuel.Quantity }} {{ else }} --- {{ end }}</td>
 					</tr>
 				{{ end }}
 			</tbody>
