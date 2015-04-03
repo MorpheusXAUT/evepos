@@ -228,23 +228,25 @@ func (controller *Controller) CalculateFuelShoppingList(poses []*models.POS) (*m
 	var fuelList []*models.Fuel
 
 	for _, pos := range poses {
-		missingFuel := (pos.Capacity / 5) - pos.Fuel.Quantity
-		if missingFuel <= 0 {
-			continue
-		}
-
-		addFuel := true
-		for _, fuel := range fuelList {
-			if fuel.TypeID == pos.Fuel.TypeID {
-				fuel.Quantity += missingFuel
-				fuel.Volume = fuel.Quantity * 5
-				addFuel = false
-				break
+		if pos.Base.State == 4 {
+			missingFuel := (pos.Capacity / 5) - pos.Fuel.Quantity
+			if missingFuel <= 0 {
+				continue
 			}
-		}
 
-		if addFuel {
-			fuelList = append(fuelList, models.NewFuel(pos.Fuel.TypeID, pos.Fuel.TypeName, missingFuel))
+			addFuel := true
+			for _, fuel := range fuelList {
+				if fuel.TypeID == pos.Fuel.TypeID {
+					fuel.Quantity += missingFuel
+					fuel.Volume = fuel.Quantity * 5
+					addFuel = false
+					break
+				}
+			}
+
+			if addFuel {
+				fuelList = append(fuelList, models.NewFuel(pos.Fuel.TypeID, pos.Fuel.TypeName, missingFuel))
+			}
 		}
 	}
 
