@@ -8,17 +8,21 @@ import (
 
 // POS represents a player operated starbase
 type POS struct {
-	Base    *eveapi.Starbase
-	Details *eveapi.StarbaseDetails
-	Fuel    *POSFuel
+	Base     *eveapi.Starbase
+	Details  *eveapi.StarbaseDetails
+	Fuel     *POSFuel
+	Name     string
+	Capacity int64
 }
 
 // NewPOS creates a new POS with the given information
-func NewPOS(base *eveapi.Starbase, details *eveapi.StarbaseDetails, fuel *POSFuel) *POS {
+func NewPOS(base *eveapi.Starbase, details *eveapi.StarbaseDetails, fuel *POSFuel, name string, capacity int64) *POS {
 	pos := &POS{
-		Base:    base,
-		Details: details,
-		Fuel:    fuel,
+		Base:     base,
+		Details:  details,
+		Fuel:     fuel,
+		Name:     name,
+		Capacity: capacity,
 	}
 
 	return pos

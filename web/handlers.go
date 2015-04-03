@@ -330,6 +330,20 @@ func (controller *Controller) PosesGetHandler(w http.ResponseWriter, r *http.Req
 	}
 
 	response["poses"] = poses
+
+	fuelShoppingList, err := controller.Session.CalculateFuelShoppingList(poses)
+	if err != nil {
+		misc.Logger.Warnf("Failed to calculate fuel shopping list: [%v]", err)
+
+		response["status"] = 1
+		response["result"] = fmt.Errorf("Failed to calculate fuel shopping list, please try again!")
+
+		controller.SendResponse(w, r, "poses", response)
+
+		return
+	}
+
+	response["fuelShoppingList"] = fuelShoppingList
 	response["loggedIn"] = loggedIn
 	response["status"] = 0
 	response["result"] = nil

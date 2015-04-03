@@ -30,6 +30,8 @@ type Connection interface {
 	QueryLocationName(moonID int64) (string, error)
 	QueryTypeName(typeID int64) (string, error)
 	QueryFuelUsage(posTypeID int64, fuelTypeID int64) (int64, error)
+	QueryCapacity(typeID int64) (int64, error)
+	QueryStarbaseName(starbaseID int64) (string, error)
 
 	// SaveUser saves a user to the database, returning the updated model or an error if the query failed
 	SaveUser(user *models.User) (*models.User, error)

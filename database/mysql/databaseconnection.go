@@ -1,6 +1,7 @@
 package mysql
 
 import (
+	"database/sql"
 	"fmt"
 
 	"github.com/morpheusxaut/evepos/misc"
@@ -144,6 +145,30 @@ func (c *DatabaseConnection) QueryFuelUsage(posTypeID int64, fuelTypeID int64) (
 	}
 
 	return usage, nil
+}
+
+func (c *DatabaseConnection) QueryCapacity(typeID int64) (int64, error) {
+	var capacity int64
+
+	err := c.conn.Get(&capacity, "SELECT capacity FROM invTypes WHERE typeID=?", typeID)
+	if err != nil {
+		return 0, err
+	}
+
+	return capacity, nil
+}
+
+func (c *DatabaseConnection) QueryStarbaseName(starbaseID int64) (string, error) {
+	var name string
+
+	err := c.conn.Get(&name, "SELECT name FROM starbasenames WHERE starbaseid=?", starbaseID)
+	if err == sql.ErrNoRows {
+		return "", nil
+	} else if err != nil {
+		return "", err
+	}
+
+	return name, nil
 }
 
 // SaveUser saves a user to the MySQL database, returning the updated model or an error if the query failed

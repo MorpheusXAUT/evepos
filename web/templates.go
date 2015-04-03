@@ -95,5 +95,11 @@ func (templates *Templates) FormatRemainingFuelTime(usage int64, quantity int64)
 }
 
 func (templates *Templates) CalculateRemainingFuelTime(usage int64, quantity int64) int64 {
-	return quantity / usage
+	remainingFuelTime := quantity / usage
+
+	if remainingFuelTime > 0 {
+		return remainingFuelTime
+	} else {
+		return 999999999
+	}
 }

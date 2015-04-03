@@ -50,7 +50,7 @@ func SetupSessionController(conf *misc.Configuration, db database.Connection, ma
 		emailReminderChan:   make(chan bool),
 	}
 
-	store, err := redistore.NewRediStoreWithDB(10, "tcp", controller.config.RedisHost, controller.config.RedisPassword, "2", securecookie.GenerateRandomKey(64), securecookie.GenerateRandomKey(32))
+	store, err := redistore.NewRediStoreWithDB(10, "tcp", controller.config.RedisHost, controller.config.RedisPassword, controller.config.RedisDB, securecookie.GenerateRandomKey(64), securecookie.GenerateRandomKey(32))
 	if err != nil {
 		return nil, err
 	}
@@ -137,7 +137,19 @@ func (controller *Controller) RefreshCache() {
 				}
 			}
 
-			poses = append(poses, models.NewPOS(starbase, starbaseDetails, posFuel))
+			starbaseName, err := controller.database.QueryStarbaseName(starbase.ID)
+			if err != nil {
+				misc.Logger.Errorf("Failed to query starbase name: [%v]", err)
+				return
+			}
+
+			capacity, err := controller.database.QueryCapacity(starbase.TypeID)
+			if err != nil {
+				misc.Logger.Errorf("Failed to query capacity: [%v]", err)
+				return
+			}
+
+			poses = append(poses, models.NewPOS(starbase, starbaseDetails, posFuel, starbaseName, capacity))
 		}
 
 		controller.expiryTime = starbaseList.APIResult.CachedUntil.Time
@@ -210,6 +222,35 @@ func (controller *Controller) CheckEmailReminder() {
 			misc.Logger.Errorf("Failed to send fuel reminder: [%v]", err)
 		}
 	}
+}
+
+func (controller *Controller) CalculateFuelShoppingList(poses []*models.POS) (*models.FuelShoppingList, error) {
+	var fuelList []*models.Fuel
+
+	for _, pos := range poses {
+		missingFuel := (pos.Capacity / 5) - pos.Fuel.Quantity
+		if missingFuel <= 0 {
+			continue
+		}
+
+		addFuel := true
+		for _, fuel := range fuelList {
+			if fuel.TypeID == pos.Fuel.TypeID {
+				fuel.Quantity += missingFuel
+				fuel.Volume = fuel.Quantity * 5
+				addFuel = false
+				break
+			}
+		}
+
+		if addFuel {
+			fuelList = append(fuelList, models.NewFuel(pos.Fuel.TypeID, pos.Fuel.TypeName, missingFuel))
+		}
+	}
+
+	fuelShoppingList := models.NewFuelShoppingList(fuelList)
+
+	return fuelShoppingList, nil
 }
 
 // DestroySession destroys a user's session by setting a negative maximum age
@@ -314,6 +355,8 @@ func (controller *Controller) Authenticate(w http.ResponseWriter, r *http.Reques
 	loginSession.Values["userID"] = user.ID
 	loginSession.Values["timestamp"] = time.Now().Unix()
 	loginSession.Values["verifiedEmail"] = user.VerifiedEmail
+
+	loginSession.Options.MaxAge = 604800
 
 	return sessions.Save(r, w)
 }
