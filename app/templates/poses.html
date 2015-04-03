@@ -24,7 +24,7 @@
 						<td>{{ FormatType $pos.Base.TypeID }}</td>
 						<td>{{ FormatLocation $pos.Base.MoonID }}</td>
 						<td data-order="{{ $pos.Base.State }}">{{ FormatState $pos.Base.State }}</td>
-						<td data-order="{{ $pos.Fuel.Quantity }}">{{ if eq $pos.Base.State 4 }} {{ printf "%dx %s" $pos.Fuel.Quantity $pos.Fuel.TypeName }} {{ else }} --- {{ end }}</td>
+						<td data-order="{{ $pos.Fuel.Quantity }}">{{ if eq $pos.Base.State 4 }} {{ printf "%s x %s" (FormatInt64 $pos.Fuel.Quantity) $pos.Fuel.TypeName }} {{ else }} --- {{ end }}</td>
 						<td data-order="{{ CalculateRemainingFuelTime $pos.Fuel.Usage $pos.Fuel.Quantity }}">{{ if eq $pos.Base.State 4 }} {{ FormatRemainingFuelTime $pos.Fuel.Usage $pos.Fuel.Quantity }} {{ else }} --- {{ end }}</td>
 					</tr>
 				{{ end }}
@@ -48,14 +48,14 @@
 			<tbody>
 				{{ range $fuel := .fuelShoppingList.FuelList }}
 					<tr>
-						<td>{{ $fuel.Quantity }} x</td>
+						<td>{{ FormatInt64 $fuel.Quantity }} x</td>
 						<td>{{ $fuel.Name }}</td>
-						<td>{{ $fuel.Volume }}m<sup>3</sup></td>
+						<td>{{ FormatInt64 $fuel.Volume }} m<sup>3</sup></td>
 					</tr>
 				{{ end }}
 			</tbody>
 		</table>
-		<div align="center"><b>Total Volume:</b> {{ .fuelShoppingList.CalculateTotalVolume }}m<sup>3</sup></div>
+		<div align="center"><b>Total Volume:</b> {{ FormatInt64 .fuelShoppingList.CalculateTotalVolume }} m<sup>3</sup></div>
 	</div>
 </div>
 {{ template "footer" . }}

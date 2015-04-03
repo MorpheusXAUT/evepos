@@ -46,6 +46,7 @@ func (templates *Templates) TemplateFunctions(r *http.Request) template.FuncMap 
 		"FormatLocation":             func(m int64) string { return templates.FormatLocation(m) },
 		"FormatState":                func(s int64) string { return templates.FormatState(s) },
 		"FormatRemainingFuelTime":    func(u int64, q int64) string { return templates.FormatRemainingFuelTime(u, q) },
+		"FormatInt64":                func(i int64) string { return templates.FormatInt64(i) },
 		"CalculateRemainingFuelTime": func(u int64, q int64) int64 { return templates.CalculateRemainingFuelTime(u, q) },
 	}
 }
@@ -92,6 +93,10 @@ func (templates *Templates) FormatState(state int64) string {
 
 func (templates *Templates) FormatRemainingFuelTime(usage int64, quantity int64) string {
 	return humanize.Time(time.Now().Add(time.Hour * time.Duration(quantity/usage)))
+}
+
+func (templates *Templates) FormatInt64(i int64) string {
+	return humanize.Comma(i)
 }
 
 func (templates *Templates) CalculateRemainingFuelTime(usage int64, quantity int64) int64 {
