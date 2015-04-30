@@ -59,7 +59,7 @@ func SetupSessionController(conf *misc.Configuration, db database.Connection, ma
 
 	controller.store.Options = &sessions.Options{
 		Path:     "/",
-		MaxAge:   86400,
+		MaxAge:   604800,
 		HttpOnly: true,
 	}
 
@@ -165,7 +165,7 @@ func (controller *Controller) StartEmailReminderTicker() {
 			case <-controller.emailReminderTicker.C:
 				misc.Logger.Debugln("Checking POS fuel reminder...")
 				controller.CheckEmailReminder()
-				misc.Logger.Debugln("Next POS fuel reminder check scheduled in 30 minutes...")
+				misc.Logger.Debugln("Next POS fuel reminder check scheduled in 60 minutes...")
 				break
 			case <-controller.emailReminderChan:
 				misc.Logger.Debugln("Checking POS fuel reminder, manually triggered...")
@@ -200,13 +200,13 @@ func (controller *Controller) CheckEmailReminder() {
 				lowPoses = append(lowPoses, pos)
 				controller.reminders[pos.Base.ID] = models.NewPOSFuelReminder(pos)
 			} else {
-				misc.Logger.Tracef("POS #%d still has enough fuel, skipping...", pos.Base.ID)
+				misc.Logger.Tracef("POS #%d still has enough fuel (%dh left), skipping...", pos.Base.ID, remainingHours)
 			}
 		}
 	}
 
 	if len(lowPoses) == 0 {
-		misc.Logger.Debugln("No POSes low on fuel. YAY \\o/")
+		misc.Logger.Debugln("No POSes low on fuel or all remembers already sent. YAY \\o/")
 		return
 	}
 
